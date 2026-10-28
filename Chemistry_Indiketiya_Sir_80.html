@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chemistry Marks Tracker - Multi-User Portal</title>
+
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Chart.js & jsPDF Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- FontAwesome Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#f0fdf4',
+            100: '#dcfce7',
+            500: '#16a34a',
+            800: '#166534',
+            900: '#14532d',
+          }
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  .grade-A { color: #15803d; font-weight: 700; }
+  .grade-B { color: #1d4ed8; font-weight: 700; }
+  .grade-C { color: #0f766e; font-weight: 700; }
+  .grade-S { color: #c2410c; font-weight: 700; }
+  .grade-F { color: #b91c1c; font-weight: 700; }
+</style>
+</head>
+
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen pb-12">
+
+<!-- Login Modal -->
+<div id="loginModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-slate-200">
+    <div class="text-center mb-6">
+      <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-brand-500">
+        <i class="fa-solid fa-user-shield text-3xl"></i>
+      </div>
+      <h2 class="text-xl font-bold text-slate-800">Chemistry Portal Login</h2>
+      <p class="text-xs text-slate-500 mt-1">Please select your account and log in</p>
+    </div>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Select User Account</label>
+        <select id="loginRole" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="Operator1">Data Entry Operator 1</option>
+          <option value="Operator2">Data Entry Operator 2</option>
+          <option value="Operator3">Data Entry Operator 3</option>
+          <option value="Operator4">Data Entry Operator 4</option>
+          <option value="Operator5">Data Entry Operator 5</option>
+          <option value="admin">Main Admin Portal</option>
+        </select>  
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-600 mb-1">Passcode / Password</label>
+        <input type="password" id="loginPass" placeholder="Enter Password" onkeydown="if(event.key==='Enter')attemptLogin()" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500">
+      </div>
+
+      <button id="loginBtn" onclick="attemptLogin()" class="w-full bg-brand-500 hover:bg-brand-800 text-white font-bold py-3 rounded-xl shadow-lg transition text-sm">
+Log In to Panel</button>
+
+      <div id="loginError" class="hidden text-center text-xs text-rose-600 font-bold mt-2">
+        Invalid Passcode or Password!
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top Navigation Bar -->
+<header class="bg-brand-900 text-white shadow-lg sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+    <div class="flex items-center space-x-3">
+      <i class="fa-solid fa-flask-vial text-2xl text-emerald-300"></i>
+      <div>
+        <h1 class="text-xl font-bold tracking-wide">Chemistry Marks Tracker</h1>
+        <p id="userRoleBadge" class="text-[10px] text-emerald-200 font-semibold uppercase tracking-wider">Marking Panel Mode</p>
+      </div>
+    </div>
+    
+    <!-- Sync & User Controls -->
+    <div class="flex items-center gap-3">
+      <div id="syncBadge" class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="syncStatusText">Loading...</span>
+      </div>
+      <button onclick="syncToCloud()" class="bg-brand-800 hover:bg-brand-500 text-xs px-3 py-1.5 rounded-lg border border-brand-500 transition shadow">
+        <i class="fa-solid fa-rotate"></i> Sync Data
+      </button>
+      <button onclick="logout()" class="bg-rose-600 hover:bg-rose-700 text-xs px-3 py-1.5 rounded-lg font-bold transition shadow">
+        <i class="fa-solid fa-right-from-bracket"></i> Exit
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-7xl mx-auto px-4 mt-6 space-y-6">
+
+  <!-- Branch & Batch Selector Header -->
+  <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="p-3 bg-brand-50 rounded-xl text-brand-500">
+        <i class="fa-solid fa-building-columns text-xl"></i>
+      </div>
+      <div>
+        <h2 class="text-sm font-semibold text-slate-500 uppercase">Active Center & Batch</h2>
+        <p class="text-lg font-bold text-slate-800"><span class="branchLabel">Matara</span> Branch (<span class="batchLabel">A/L 2027</span>)</p>
+      </div>
+    </div>
+    
+    <div class="flex flex-wrap gap-3 w-full sm:w-auto">
+      <select id="classBranch" onchange="switchBranchOrBatch()" class="p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+        <option value="Matara">Matara Branch</option>
+        <option value="Tangalle">Tangalle Branch</option>
+      </select>
+      <select id="classBatch" onchange="switchBranchOrBatch()" class="p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+        <option value="A/L 2027">A/L 2027</option>
+        <option value="A/L 2028">A/L 2028</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Entry Form Section -->
+    <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-user-plus text-brand-500"></i> Data Entry (<span id="activeOperatorName">Operator</span>)
+        </h2>
+        <div id="lockStatus" class="text-xs font-bold px-3 py-1 rounded-full"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Student ID</label>
+          <input type="text" id="studentId" placeholder="e.g. M2710" oninput="autoFillDetails()" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Student Name</label>
+          <input type="text" id="studentName" placeholder="Full Name" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">School</label>
+          <input type="text" id="studentSchool" placeholder="e.g. Rahula College, Matara" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Target UE</label>
+          <select id="week" onchange="onWeekChange()" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+            <script>
+              for(let i=1; i<=100; i++) {
+                document.write(`<option value="UE ${i}">UE ${i}</option>`);
+              }
+            </script>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-600 mb-1">Marks Score</label>
+          <input type="number" id="marks" placeholder="Leave empty if Absent" min="0" max="100" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+      </div>
+
+      <div class="mt-5 flex flex-wrap gap-2 justify-between items-center pt-3 border-t border-slate-100">
+        <button id="addBtn" onclick="addMarks()" class="bg-brand-500 hover:bg-brand-800 text-white font-bold text-sm px-5 py-2.5 rounded-lg shadow-md transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="fa-solid fa-floppy-disk"></i> Save / Update Marks
+        </button>
+
+        <!-- Admin Control Locks -->
+        <div id="adminLockControls" class="flex items-center gap-2">
+          <button onclick="toggleLock(true)" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow">
+            <i class="fa-solid fa-lock"></i> Lock UE
+          </button>
+          <button onclick="toggleLock(false)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow">
+            <i class="fa-solid fa-lock-open"></i> Unlock
+          </button>
+        </div>
+      </div>
+
+      <div id="message" class="hidden mt-3 p-3 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold flex items-center gap-2">
+        <i class="fa-solid fa-circle-check text-emerald-600"></i> Marks successfully saved!
+      </div>
+    </div>
+
+    <!-- Quick Search Widget & Session Counter -->
+    <div class="space-y-4">
+      <!-- Session Counter Widget for Operators -->
+      <div id="operatorStatsCard" class="bg-gradient-to-br from-brand-900 to-slate-900 text-white p-5 rounded-2xl shadow-sm border border-slate-800">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-emerald-300 uppercase">Current Entry Session</span>
+          <i class="fa-solid fa-list-check text-emerald-400"></i>
+        </div>
+        <p class="text-3xl font-extrabold text-white" id="sessionCounter">0</p>
+        <p class="text-xs text-slate-300 mt-1">Marks entered in this session</p>
+      </div>
+
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <h2 class="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-magnifying-glass text-brand-500"></i> Student Lookup
+        </h2>
+        <p class="text-xs text-slate-500 mb-4">Quick search student marks and rankings history across active UEs.</p>
+        
+        <div class="space-y-3">
+          <input type="text" id="searchId" placeholder="Enter Student ID (e.g. M2710)" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-500">
+          <div class="flex gap-2">
+            <button onclick="searchStudent()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-lg transition shadow">Search</button>
+            <button onclick="resetSearch()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-lg transition">Clear</button>
+          </div>
+        </div>
+        <div id="searchResults" class="mt-4 max-h-40 overflow-y-auto text-xs text-slate-600"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Main Data Table -->
+  <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 overflow-hidden">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Consolidated Marks Sheet (<span class="branchLabel">Matara</span> - <span class="batchLabel">A/L 2027</span>)</h2>
+        <span id="recordCount" class="text-xs font-semibold text-brand-800 bg-brand-50 px-3 py-1 rounded-full border border-brand-100">Total Entries: 0</span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-bold text-slate-600">Filter UE:</label>
+        <select id="tableUEFilter" onchange="onUEFilterChange()" class="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="ALL">All UEs</option>
+          <script>
+            for(let i=1; i<=100; i++) {
+              document.write(`<option value="UE ${i}">UE ${i}</option>`);
+            }
+          </script>
+        </select>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto max-h-[500px] overflow-y-auto border border-slate-100 rounded-lg">
+      <table id="marksTable" class="w-full text-left text-sm relative">
+        <thead class="bg-slate-800 text-slate-100 text-xs uppercase sticky top-0 z-10">
+          <tr>
+            <th class="p-3">Student ID</th>
+            <th class="p-3">Student Name</th>
+            <th class="p-3">School</th>
+            <th class="p-3">UE</th>
+            <th class="p-3">Marks</th>
+            <th class="p-3">Grade</th>
+            <th class="p-3">Rank</th>
+            <th class="p-3 text-center adminOnlyCell">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-slate-700 font-medium"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Analytics Grid (Admin Only View) -->
+  <div id="adminAnalyticsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <h2 class="text-md font-bold text-slate-800 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-trophy text-amber-500"></i> Top Achievers (50+)
+      </h2>
+      <ul id="topStudents" class="space-y-2 text-xs max-h-64 overflow-y-auto pr-1"></ul>
+    </div>
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <h2 class="text-md font-bold text-slate-800 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-triangle-exclamation text-rose-500"></i> Weak Students (&lt;30)
+      </h2>
+      <ul id="weakStudents" class="space-y-2 text-xs max-h-64 overflow-y-auto pr-1"></ul>
+    </div>
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <h2 class="text-md font-bold text-slate-800 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-chart-pie text-brand-500"></i> Grade Distribution
+      </h2>
+      <div id="chartBox" class="relative max-w-xs mx-auto">
+        <canvas id="pieChart"></canvas>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+      <div>
+        <h2 class="text-md font-bold text-slate-800 mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-file-pdf text-rose-500"></i> Admin PDF Exporter
+        </h2>
+        <p class="text-xs text-slate-500 mb-4">Export filtered marks, top rankings, weak students, and statistical breakdown to PDF.</p>
+        
+        <label class="block text-xs font-bold text-slate-600 mb-1">Report Branch</label>
+        <select id="reportScope" onchange="prefetchReport()" class="w-full p-2.5 mb-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="Matara">Matara</option>
+          <option value="Tangalle">Tangalle</option>
+          <option value="combined">Matara + Tangalle</option>
+        </select>
+
+        <label class="block text-xs font-bold text-slate-600 mb-1">Report Batch</label>
+        <select id="reportBatch" onchange="prefetchReport()" class="w-full p-2.5 mb-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="A/L 2027">A/L 2027</option>
+          <option value="A/L 2028">A/L 2028</option>
+        </select>
+
+        <label class="block text-xs font-bold text-slate-600 mb-1">Target Report Filter</label>
+        <select id="reportWeek" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="ALL">All Combined UEs</option>
+          <script>
+            for(let i=1; i<=100; i++) {
+              document.write(`<option value="UE ${i}">UE ${i}</option>`);
+            }
+          </script>
+        </select>
+      </div>
+
+      <button id="pdfBtn" onclick="downloadPDF()" class="mt-4 w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 rounded-lg transition shadow flex items-center justify-center gap-2">
+        <i class="fa-solid fa-download"></i> Generate PDF Report
+      </button>
+      <p id="reportHint" class="text-[11px] text-slate-500 mt-2 text-center"></p>
+    </div>
+
+  </div>
+
+  <!-- Student Line Performance Charts -->
+  <div id="adminGraphsSection" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+      <i class="fa-solid fa-chart-line text-brand-500"></i> Individual Student Progress Tracker
+    </h2>
+    <div id="graphs" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto p-2"></div>
+  </div>
+
+</div>
+
+<script>
+// Web App URL
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx1jDO99mFRu2entfVYaKS5FsOge6_1r7Cydx0KmBEU4nNYRRYio7JFnEuWaClvuqulgw/exec";
+
+// Passwords are checked in Code.gs (not stored in this page)
+let authToken = localStorage.getItem("chemAuthToken") || null;
+let currentUserRole = authToken ? (localStorage.getItem("chemUserRole") || null) : null;
+if (!authToken) localStorage.removeItem("chemUserRole");
+let sessionCount = 0;
+
+let currentBranch = localStorage.getItem("chemCurrentBranch") || "Matara";
+let currentBatch = localStorage.getItem("chemCurrentBatch") || "A/L 2027";
+
+let storageKey = `chemMarksData_${currentBranch}_${currentBatch}`;
+let mapKey = `chemStudentMap_${currentBranch}_${currentBatch}`;
+let lockKey = `chemLockedWeeks_${currentBranch}_${currentBatch}`;
+let pendingKey = `chemPending_${currentBranch}_${currentBatch}`;
+
+let data = JSON.parse(localStorage.getItem(storageKey)) || [];
+let studentMap = JSON.parse(localStorage.getItem(mapKey)) || {};
+let lockedWeeks = JSON.parse(localStorage.getItem(lockKey)) || {};
+// Marks saved on this computer but not yet sent to the Sheet
+let pending = loadPending();
+
+let pieChart;
+let lineCharts = [];
+
+document.getElementById("classBranch").value = currentBranch;
+document.getElementById("classBatch").value = currentBatch;
+
+function checkAuthStatus() {
+  const modal = document.getElementById("loginModal");
+  if (!currentUserRole) {
+    modal.classList.remove("hidden");
+  } else {
+    modal.classList.add("hidden");
+    applyRolePermissions();
+  }
+}
+
+async function attemptLogin() {
+  const selectedUser = document.getElementById("loginRole").value;
+  const pass = document.getElementById("loginPass").value.trim();
+  const errorDiv = document.getElementById("loginError");
+  const btn = document.getElementById("loginBtn");
+
+  errorDiv.classList.add("hidden");
+  btn.disabled = true;
+  btn.innerText = "Checking...";
+
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "login", role: selectedUser, password: pass })
+    });
+    const result = await res.json();
+
+    if (result && result.status === "success") {
+      authToken = result.token;
+      currentUserRole = result.role;
+      localStorage.setItem("chemAuthToken", authToken);
+      localStorage.setItem("chemUserRole", currentUserRole);
+      document.getElementById("loginPass").value = "";
+      checkAuthStatus();
+      fetchFromCloud();
+    } else {
+      errorDiv.innerText = (result && result.message) || "Invalid Passcode or Password!";
+      errorDiv.classList.remove("hidden");
+    }
+  } catch (e) {
+    errorDiv.innerText = "Network error - check your internet and try again.";
+    errorDiv.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Log In to Panel";
+  }
+}
+
+function logout() {
+  localStorage.removeItem("chemAuthToken");
+  localStorage.removeItem("chemUserRole");
+  authToken = null;
+  currentUserRole = null;
+  location.reload();
+}
+
+// Login expired or password changed: show the login box again
+function handleAuthError(result) {
+  if (result && result.status === "auth") {
+    localStorage.removeItem("chemAuthToken");
+    localStorage.removeItem("chemUserRole");
+    authToken = null;
+    currentUserRole = null;
+    checkAuthStatus();
+    return true;
+  }
+  return false;
+}
+
+function applyRolePermissions() {
+  const badge = document.getElementById("userRoleBadge");
+  const activeOperatorSpan = document.getElementById("activeOperatorName");
+  const adminLocks = document.getElementById("adminLockControls");
+  const analyticsGrid = document.getElementById("adminAnalyticsGrid");
+  const graphsSection = document.getElementById("adminGraphsSection");
+
+  if (currentUserRole === "admin") {
+    badge.innerText = "Main Admin Portal";
+    activeOperatorSpan.innerText = "Admin Panel";
+    adminLocks.classList.remove("hidden");
+    analyticsGrid.classList.remove("hidden");
+    graphsSection.classList.remove("hidden");
+  } else {
+    const opLabel = currentUserRole.replace("Operator", "Operator ");
+    badge.innerText = `Operator Mode (${opLabel})`;
+    activeOperatorSpan.innerText = opLabel;
+    adminLocks.classList.add("hidden");
+    analyticsGrid.classList.add("hidden");
+    graphsSection.classList.add("hidden");
+  }
+  renderAll();
+}
+
+function getLevel(mark) {
+  if (mark === "Absent" || mark === null || mark === undefined || mark === "") return "F";
+  mark = Number(mark);
+  if (mark >= 75) return "A";
+  if (mark >= 65) return "B";
+  if (mark >= 55) return "C";
+  if (mark >= 35) return "S";
+  return "F";
+}
+
+function parseUENum(str) {
+  if (!str) return 0;
+  let num = parseInt(str.toString().replace(/[^0-9]/g, ''));
+  return isNaN(num) ? 0 : num;
+}
+
+// "Test 1" (old marks) and "UE 1" (new marks) are the same UE
+function sameUE(a, b) {
+  return parseUENum(a) > 0 ? parseUENum(a) === parseUENum(b) : String(a) === String(b);
+}
+function ueLabel(w) {
+  const n = parseUENum(w);
+  return n > 0 ? "UE " + n : String(w || "");
+}
+
+function deduplicate(list) {
+  const map = new Map();
+  if (!Array.isArray(list)) return [];
+
+  list.forEach(item => {
+    if (!item || !item.id) return;
+    
+    const cleanId = String(item.id).trim().toUpperCase();
+    let cleanWeek = String(item.week || "").trim().replace("Week ", "UE ");
+
+    const key = `${cleanId}_${cleanWeek}`;
+
+    map.set(key, {
+      id: cleanId,
+      name: String(item.name || "").trim(),
+      school: String(item.school || "").trim(),
+      week: cleanWeek,
+      marks: item.marks,
+      grade: getLevel(item.marks),
+      rank: item.rank || ''
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function calculateRanks() {
+  if (!data || data.length === 0) return;
+
+  let weeks = [...new Set(data.map(item => item.week))];
+
+  weeks.forEach(w => {
+    data.filter(item => item.week === w && typeof item.marks !== 'number').forEach(item => item.rank = '');
+    let weekData = data.filter(item => item.week === w && typeof item.marks === 'number');
+    weekData.sort((a, b) => Number(b.marks) - Number(a.marks));
+
+    let currentRank = 1;
+    weekData.forEach((item, index) => {
+      if (index > 0 && Number(item.marks) < Number(weekData[index - 1].marks)) {
+        currentRank = index + 1;
+      }
+      item.rank = currentRank;
+    });
+  });
+}
+
+function setSyncStatus(isSyncing, text) {
+  const statusText = document.getElementById("syncStatusText");
+  if (!statusText) return;
+  if (isSyncing) {
+    statusText.innerText = text || "Saving...";
+  } else {
+    const n = pendingCount();
+    statusText.innerText = text || (n > 0 ? `${n} not synced - press Sync Data` : "All Synced");
+  }
+}
+
+function entryKey(item) {
+  return `${String(item.id).trim().toUpperCase()}_${String(item.week).trim()}`;
+}
+
+function loadPending() {
+  let p = JSON.parse(localStorage.getItem(pendingKey) || "null") || { upserts: {}, deletes: {} };
+  // First time with this version: send this computer's old marks to the Sheet so nothing is lost
+  const migratedKey = `chemMigratedV2_${currentBranch}_${currentBatch}`;
+  if (!localStorage.getItem(migratedKey)) {
+    data.forEach(item => { if (item && item.id) p.upserts[entryKey(item)] = item; });
+    localStorage.setItem(migratedKey, "1");
+    localStorage.setItem(pendingKey, JSON.stringify(p));
+  }
+  return p;
+}
+
+function pendingCount() {
+  return Object.keys(pending.upserts).length + Object.keys(pending.deletes).length;
+}
+
+// Sheet data + this computer's unsent changes
+function applyPending(list) {
+  const map = new Map(list.map(item => [entryKey(item), item]));
+  Object.keys(pending.deletes).forEach(k => map.delete(k));
+  Object.entries(pending.upserts).forEach(([k, item]) => {
+    // An empty name/school on this computer never hides the one already in the Sheet
+    const base = map.get(k) || {};
+    map.set(k, Object.assign({}, item, {
+      name: item.name || base.name || "",
+      school: item.school || base.school || ""
+    }));
+  });
+  return Array.from(map.values());
+}
+
+function rebuildStudentMap() {
+  studentMap = {};
+  data.forEach(item => {
+    if (item.id) {
+      studentMap[String(item.id).trim().toUpperCase()] = { name: item.name || "", school: item.school || "" };
+    }
+  });
+}
+
+function sheetNameFor() {
+  return currentBranch + currentBatch.replace(/\s+/g, '');
+}
+
+function useCloudResult(result) {
+  if (result.role && result.role !== currentUserRole) {
+    currentUserRole = result.role;
+    localStorage.setItem("chemUserRole", currentUserRole);
+    applyRolePermissions();
+  }
+  data = deduplicate(applyPending(result.dataList || []));
+  lockedWeeks = result.lockedWeeks || {};
+  rebuildStudentMap();
+  calculateRanks();
+  saveLocal();
+  renderAll();
+  checkWeekStatus();
+}
+
+async function syncToCloud() {
+  calculateRanks();
+  data = deduplicate(data);
+  saveLocal();
+
+  if (!SCRIPT_URL || SCRIPT_URL.includes("PASTE")) {
+    return;
+  }
+
+  setSyncStatus(true, "Saving to Sheet...");
+
+  try {
+    const sentUpserts = Object.values(pending.upserts);
+    const sentDeleteKeys = Object.keys(pending.deletes);
+
+    const payload = JSON.stringify({
+      action: "syncData",
+      token: authToken,
+      branch: sheetNameFor(),
+      upserts: sentUpserts,
+      deletes: sentDeleteKeys.map(k => pending.deletes[k]),
+      lockedWeeks: lockedWeeks
+    });
+
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: payload
+    });
+    const result = await res.json();
+    if (handleAuthError(result)) { setSyncStatus(false, "Log in again, then Sync"); return; }
+    if (!result || result.status !== "success") throw new Error(result ? result.message : "Unknown error");
+
+    // Remove only the changes that were sent (new ones made while saving stay pending)
+    sentUpserts.forEach(item => {
+      const k = entryKey(item);
+      if (pending.upserts[k] === item) delete pending.upserts[k];
+    });
+    sentDeleteKeys.forEach(k => delete pending.deletes[k]);
+
+    useCloudResult(result);
+    setSyncStatus(false, "Saved Successfully!");
+    setTimeout(() => setSyncStatus(false), 2500);
+
+  } catch(e) {
+    console.error("Sync error:", e);
+    setSyncStatus(false, "Not Saved - Try Sync Again");
+  }
+}
+
+async function fetchFromCloud() {
+  if (!SCRIPT_URL || !authToken) return;
+
+  setSyncStatus(true, "Fetching Cloud Data...");
+  try {
+    let res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "fetchData",
+        token: authToken,
+        branch: sheetNameFor()
+      })
+    });
+
+    let result = await res.json();
+    if (handleAuthError(result)) return;
+    if (result && result.status === "success") {
+      useCloudResult(result);
+    }
+  } catch(e) {
+    console.error("Fetch error", e);
+  } finally {
+    setSyncStatus(false);
+  }
+}
+
+function saveLocal() {
+  localStorage.setItem(storageKey, JSON.stringify(data));
+  localStorage.setItem(mapKey, JSON.stringify(studentMap));
+  localStorage.setItem(lockKey, JSON.stringify(lockedWeeks));
+  localStorage.setItem(pendingKey, JSON.stringify(pending));
+}
+
+function switchBranchOrBatch() {
+  currentBranch = document.getElementById("classBranch").value;
+  currentBatch = document.getElementById("classBatch").value;
+
+  localStorage.setItem("chemCurrentBranch", currentBranch);
+  localStorage.setItem("chemCurrentBatch", currentBatch);
+  
+  storageKey = `chemMarksData_${currentBranch}_${currentBatch}`;
+  mapKey = `chemStudentMap_${currentBranch}_${currentBatch}`;
+  lockKey = `chemLockedWeeks_${currentBranch}_${currentBatch}`;
+  pendingKey = `chemPending_${currentBranch}_${currentBatch}`;
+
+  data = JSON.parse(localStorage.getItem(storageKey)) || [];
+  data = deduplicate(data);
+  studentMap = JSON.parse(localStorage.getItem(mapKey)) || {};
+  lockedWeeks = JSON.parse(localStorage.getItem(lockKey)) || {};
+  pending = loadPending();
+
+  document.querySelectorAll(".branchLabel").forEach(el => el.innerText = currentBranch);
+  document.querySelectorAll(".batchLabel").forEach(el => el.innerText = currentBatch);
+
+  fetchFromCloud();
+  renderAll();
+}
+
+function autoFillDetails() {
+  const idInput = document.getElementById("studentId");
+  const nameInput = document.getElementById("studentName");
+  const schoolInput = document.getElementById("studentSchool");
+
+  const cleanId = idInput.value.trim().toUpperCase();
+  if (studentMap[cleanId]) {
+    nameInput.value = studentMap[cleanId].name || "";
+    schoolInput.value = studentMap[cleanId].school || "";
+  }
+}
+
+function checkWeekStatus() {
+  const currentWeek = document.getElementById("week").value;
+  const lockStatusDiv = document.getElementById("lockStatus");
+  const addBtn = document.getElementById("addBtn");
+
+  if (lockedWeeks[currentWeek]) {
+    lockStatusDiv.innerText = "Locked";
+    lockStatusDiv.className = "text-xs font-bold px-3 py-1 rounded-full bg-rose-100 text-rose-700";
+    addBtn.disabled = true;
+  } else {
+    lockStatusDiv.innerText = "Open for Entry";
+    lockStatusDiv.className = "text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700";
+    addBtn.disabled = false;
+  }
+}
+
+function onWeekChange() {
+  checkWeekStatus();
+  autoFillDetails();
+}
+
+function toggleLock(lockStatus) {
+  if (currentUserRole !== "admin") {
+    alert("Admin access required to lock/unlock UEs!");
+    return;
+  }
+  const currentWeek = document.getElementById("week").value;
+  lockedWeeks[currentWeek] = lockStatus;
+  saveLocal();
+  checkWeekStatus();
+  syncToCloud();
+  alert(`UE ${currentWeek} has been successfully ${lockStatus ? 'locked' : 'unlocked'}.`);
+}
+
+function addMarks() {
+  const id = document.getElementById("studentId").value.trim().toUpperCase();
+  const name = document.getElementById("studentName").value.trim();
+  const school = document.getElementById("studentSchool").value.trim();
+  const week = document.getElementById("week").value;
+  const marksInput = document.getElementById("marks").value;
+
+  if (!id) {
+    alert("Please enter a valid Student ID!");
+    return;
+  }
+
+  if (lockedWeeks[week]) {
+    alert("This UE is locked by admin!");
+    return;
+  }
+
+  let finalMarks = marksInput === "" ? "Absent" : Number(marksInput);
+
+  // Update student registry map
+  studentMap[id] = { name: name, school: school };
+
+  // Remove existing entry for this student and UE if any
+  data = data.filter(item => !(item.id === id && item.week === week));
+
+  const entry = {
+    id: id,
+    name: name,
+    school: school,
+    week: week,
+    marks: finalMarks,
+    grade: getLevel(finalMarks),
+    rank: 1
+  };
+  data.push(entry);
+  pending.upserts[entryKey(entry)] = entry;
+  delete pending.deletes[entryKey(entry)];
+
+  calculateRanks();
+  data = deduplicate(data);
+  saveLocal();
+  renderAll();
+
+  setSyncStatus(false);
+  sessionCount++;
+  document.getElementById("sessionCounter").innerText = sessionCount;
+
+  const msg = document.getElementById("message");
+  msg.classList.remove("hidden");
+  setTimeout(() => msg.classList.add("hidden"), 3000);
+
+  // Clear inputs for next entry
+  document.getElementById("marks").value = "";
+  document.getElementById("studentId").value = "";
+  document.getElementById("studentName").value = "";
+  document.getElementById("studentSchool").value = "";
+  document.getElementById("studentId").focus();
+}
+
+function deleteMarkEntry(id, week) {
+  if (currentUserRole !== "admin") {
+    alert("Admin privileges required to delete records.");
+    return;
+  }
+  if (confirm(`Are you sure you want to delete records for ${id} in ${week}?`)) {
+    data = data.filter(item => !(item.id === id && item.week === week));
+    const k = entryKey({ id, week });
+    delete pending.upserts[k];
+    pending.deletes[k] = { id, week };
+    calculateRanks();
+    saveLocal();
+    renderAll();
+    setSyncStatus(false);
+  }
+}
+
+function renderTable() {
+  const tbody = document.querySelector("#marksTable tbody");
+  const filter = document.getElementById("tableUEFilter").value;
+  tbody.innerHTML = "";
+
+  let filtered = filter === "ALL" ? data : data.filter(item => sameUE(item.week, filter));
+  
+  // Sort by UE number and rank
+  filtered.sort((a, b) => parseUENum(a.week) - parseUENum(b.week) || (a.rank || 999) - (b.rank || 999));
+
+  document.getElementById("recordCount").innerText = `Total Entries: ${filtered.length}`;
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-400">No records found.</td></tr>`;
+    return;
+  }
+
+  filtered.forEach(item => {
+    let tr = document.createElement("tr");
+    tr.className = "hover:bg-slate-50 transition";
+    tr.innerHTML = `
+      <td class="p-3 font-bold text-slate-800">${item.id}</td>
+      <td class="p-3">${item.name || '-'}</td>
+      <td class="p-3">${item.school || '-'}</td>
+      <td class="p-3 font-semibold text-slate-600">${item.week}</td>
+      <td class="p-3 font-bold">${item.marks}</td>
+      <td class="p-3 grade-${item.grade}">${item.grade}</td>
+      <td class="p-3">${item.rank ? '#' + item.rank : '-'}</td>
+      <td class="p-3 text-center adminOnlyCell">
+        ${currentUserRole === 'admin' ? `<button onclick="deleteMarkEntry('${item.id}', '${item.week}')" class="text-rose-500 hover:text-rose-700 text-xs font-bold px-2 py-1 rounded"><i class="fa-solid fa-trash"></i></button>` : '-'}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderAnalytics() {
+  if (currentUserRole !== "admin") return;
+
+  // Top Achievers
+  const topList = document.getElementById("topStudents");
+  topList.innerHTML = "";
+  let topAchievers = [...data].filter(item => typeof item.marks === 'number' && item.marks >= 50);
+  topAchievers.sort((a, b) => b.marks - a.marks);
+
+  if (topAchievers.length === 0) {
+    topList.innerHTML = `<li class="text-slate-400">No top achievers found yet.</li>`;
+  } else {
+    topAchievers.slice(0, 10).forEach(item => {
+      let li = document.createElement("li");
+      li.className = "flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100";
+      li.innerHTML = `<span class="font-bold text-slate-700">${item.id} - ${item.name || 'Student'} (${item.week})</span> <span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">${item.marks}</span>`;
+      topList.appendChild(li);
+    });
+  }
+
+  // Weak Students
+  const weakList = document.getElementById("weakStudents");
+  weakList.innerHTML = "";
+  let weakStudents = [...data].filter(item => typeof item.marks === 'number' && item.marks < 30);
+  weakStudents.sort((a, b) => a.marks - b.marks);
+
+  if (weakStudents.length === 0) {
+    weakList.innerHTML = `<li class="text-slate-400">No weak students recorded.</li>`;
+  } else {
+    weakStudents.slice(0, 10).forEach(item => {
+      let li = document.createElement("li");
+      li.className = "flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100";
+      li.innerHTML = `<span class="font-bold text-slate-700">${item.id} - ${item.name || 'Student'} (${item.week})</span> <span class="bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded">${item.marks}</span>`;
+      weakList.appendChild(li);
+    });
+  }
+
+  // Pie Chart for Grades
+  let gradesCount = { A: 0, B: 0, C: 0, S: 0, F: 0 };
+  data.forEach(item => {
+    let g = item.grade || getLevel(item.marks);
+    if (gradesCount[g] !== undefined) gradesCount[g]++;
+  });
+
+  const ctx = document.getElementById("pieChart").getContext("2d");
+  if (pieChart) pieChart.destroy();
+
+  pieChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['A Grade', 'B Grade', 'C Grade', 'S Grade', 'F Grade'],
+      datasets: [{
+        data: [gradesCount.A, gradesCount.B, gradesCount.C, gradesCount.S, gradesCount.F],
+        backgroundColor: ['#15803d', '#1d4ed8', '#0f766e', '#c2410c', '#b91c1c']
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+      }
+    }
+  });
+
+  renderProgressGraphs();
+}
+
+function renderProgressGraphs() {
+  const container = document.getElementById("graphs");
+  container.innerHTML = "";
+
+  let studentIds = [...new Set(data.map(item => item.id))];
+  if(studentIds.length === 0) {
+    container.innerHTML = `<p class="text-xs text-slate-400">No student progress charts available.</p>`;
+    return;
+  }
+
+  studentIds.forEach(id => {
+    let sData = data.filter(item => item.id === id);
+    sData.sort((a, b) => parseUENum(a.week) - parseUENum(b.week));
+
+    let div = document.createElement("div");
+    div.className = "bg-slate-50 p-3 rounded-xl border border-slate-200";
+    div.innerHTML = `<p class="text-xs font-bold text-slate-700 mb-2">${id} - ${sData[0]?.name || ''}</p><canvas id="chart_${id}" height="120"></canvas>`;
+    container.appendChild(div);
+
+    let weeks = sData.map(item => item.week);
+    let marks = sData.map(item => typeof item.marks === 'number' ? item.marks : 0);
+
+    let cCtx = document.getElementById(`chart_${id}`).getContext("2d");
+    new Chart(cCtx, {
+      type: 'line',
+      data: {
+        labels: weeks,
+        datasets: [{
+          label: 'Marks',
+          data: marks,
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22, 163, 74, 0.1)',
+          fill: true,
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, max: 100 } }
+      }
+    });
+  });
+}
+
+function searchStudent() {
+  const query = document.getElementById("searchId").value.trim().toUpperCase();
+  const resultsDiv = document.getElementById("searchResults");
+  resultsDiv.innerHTML = "";
+
+  if (!query) {
+    resultsDiv.innerHTML = `<span class="text-rose-500">Please enter a Student ID.</span>`;
+    return;
+  }
+
+  let matches = data.filter(item => item.id.includes(query));
+  if (matches.length === 0) {
+    resultsDiv.innerHTML = `<span class="text-slate-400">No records found for ${query}</span>`;
+    return;
+  }
+
+  let html = `<div class="space-y-1">`;
+  matches.forEach(m => {
+    html += `<div class="bg-slate-50 p-2 rounded border border-slate-200 flex justify-between"><span><b>${m.week}</b>: Marks ${m.marks}</span><span class="grade-${m.grade}">${m.grade} (Rank #${m.rank || '-'})</span></div>`;
+  });
+  html += `</div>`;
+  resultsDiv.innerHTML = html;
+}
+
+function resetSearch() {
+  document.getElementById("searchId").value = "";
+  document.getElementById("searchResults").innerHTML = "";
+}
+
+function onUEFilterChange() {
+  renderTable();
+}
+
+function renderAll() {
+  renderTable();
+  renderAnalytics();
+  checkWeekStatus();
+}
+
+// Gives ranks inside a list (used for the combined Matara + Tangalle report)
+function rankList(list) {
+  const byUE = {};
+  list.forEach(item => (byUE[item.week] = byUE[item.week] || []).push(item));
+  Object.values(byUE).forEach(group => {
+    group.forEach(item => item.rank = '');
+    const present = group.filter(item => typeof item.marks === 'number').sort((a, b) => b.marks - a.marks);
+    let rank = 1;
+    present.forEach((item, i) => {
+      if (i > 0 && item.marks < present[i - 1].marks) rank = i + 1;
+      item.rank = rank;
+    });
+  });
+  return list;
+}
+
+// Marks of other branches / batches, loaded from the Sheet before the PDF button is pressed
+const remoteCache = {};
+const CACHE_MS = 2 * 60 * 1000;
+
+function reportSources() {
+  const scope = document.getElementById("reportScope").value;
+  const batch = document.getElementById("reportBatch").value;
+  // The report has its own Branch / Batch choice (not linked to the selection at the top)
+  const branches = scope === "combined" ? ["Matara", "Tangalle"] : [scope];
+  return { scope, batch, branches };
+}
+
+function isLocal(branch, batch) {
+  return branch === currentBranch && batch === currentBatch;
+}
+
+function cacheKey(branch, batch) {
+  return branch + batch.replace(/\s+/g, '');
+}
+
+function cachedList(branch, batch) {
+  const c = remoteCache[cacheKey(branch, batch)];
+  return c && (Date.now() - c.time < CACHE_MS) ? c.list : null;
+}
+
+async function fetchBranchData(branch, batch) {
+  const res = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "fetchData", token: authToken, branch: cacheKey(branch, batch) })
+  });
+  const result = await res.json();
+  if (handleAuthError(result)) throw new Error("Please log in again.");
+  if (!result || result.status !== "success") throw new Error((result && result.message) || "Could not load " + branch + " data");
+  const list = deduplicate(result.dataList || []);
+  remoteCache[cacheKey(branch, batch)] = { list: list, time: Date.now() };
+  return list;
+}
+
+// Loads the needed data in the background so the PDF is ready when the button is pressed
+async function prefetchReport() {
+  const { batch, branches } = reportSources();
+  const hint = document.getElementById("reportHint");
+  const missing = branches.filter(b => !isLocal(b, batch) && !cachedList(b, batch));
+  if (missing.length === 0) { hint.innerText = ""; return; }
+
+  hint.innerText = "Loading report data...";
+  try {
+    await Promise.all(missing.map(b => fetchBranchData(b, batch)));
+    hint.innerText = "Report data ready.";
+  } catch (e) {
+    hint.innerText = "Could not load data: " + e.message;
+  }
+}
+
+async function downloadPDF() {
+  const { scope, batch, branches } = reportSources();
+  const btn = document.getElementById("pdfBtn");
+  const btnHtml = btn.innerHTML;
+  const combined = scope === "combined";
+
+  try {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      throw new Error("PDF tool did not load. Check your internet connection and refresh the page.");
+    }
+
+    // Load anything that is not ready yet
+    const missing = branches.filter(b => !isLocal(b, batch) && !cachedList(b, batch));
+    if (missing.length > 0) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparing report...';
+      await Promise.all(missing.map(b => fetchBranchData(b, batch)));
+    }
+
+    let reportData = [];
+    branches.forEach(b => {
+      // The branch open on screen uses this page's data (includes marks not synced yet)
+      const list = isLocal(b, batch) ? data : cachedList(b, batch);
+      list.forEach(item => reportData.push(Object.assign({}, item, { branch: b, week: ueLabel(item.week) })));
+    });
+    rankList(reportData);
+
+    const branchText = combined ? "Matara + Tangalle (Combined)" : branches[0];
+    buildPDF(reportData, branchText, combined, batch);
+  } catch (e) {
+    console.error("PDF error:", e);
+    alert("Could not create the PDF: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = btnHtml;
+  }
+}
+
+function buildPDF(reportData, branchText, combined, batch) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("Chemistry Marks Tracker - Report", 14, 20);
+
+  // Teacher name on the right side of the header
+  doc.setFontSize(12);
+  doc.setTextColor(20, 83, 45);
+  doc.text("Chemistry - H.R.Indiketiya Sir", doc.internal.pageSize.getWidth() - 14, 20, { align: "right" });
+  doc.setTextColor(0, 0, 0);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Branch: ${branchText} | Batch: ${batch}`, 14, 28);
+  doc.text(`Generated Date: ${new Date().toLocaleDateString()}`, 14, 34);
+
+  const reportWeek = document.getElementById("reportWeek").value;
+  let exportData = reportWeek === "ALL" ? reportData : reportData.filter(item => sameUE(item.week, reportWeek));
+
+  // One table per UE, with the UE number printed above it
+  const UEs = [...new Set(exportData.map(item => item.week))]
+    .sort((a, b) => parseUENum(a) - parseUENum(b));
+
+  let y = 44;
+  if (UEs.length === 0) {
+    doc.setFontSize(11);
+    doc.text(`No records found for ${branchText} - ${batch}${reportWeek !== "ALL" ? " - " + reportWeek : ""}.`, 14, y);
+    doc.text(`(Records loaded for this branch/batch: ${reportData.length})`, 14, y + 6);
+  }
+
+  const head = combined
+    ? [['Student ID', 'Student Name', 'School', 'Branch', 'Marks', 'Grade', 'Rank']]
+    : [['Student ID', 'Student Name', 'School', 'Marks', 'Grade', 'Rank']];
+
+  UEs.forEach(UE => {
+    const rows = exportData
+      .filter(item => item.week === UE)
+      .sort((a, b) => (a.rank || 9999) - (b.rank || 9999))
+      .map(item => {
+        const row = [item.id, item.name || '-', item.school || '-'];
+        if (combined) row.push(item.branch);
+        row.push(item.marks, item.grade, item.rank ? '#' + item.rank : '-');
+        return row;
+      });
+
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text(UE, 14, y);
+
+    doc.autoTable({
+      startY: y + 4,
+      head: head,
+      body: rows,
+      theme: 'grid',
+      headStyles: { fillColor: [20, 83, 45] }
+    });
+
+    y = doc.lastAutoTable.finalY + 14;
+  });
+
+  const fileBranch = combined ? "Matara_Tangalle" : branchText;
+  const fileName = `Chemistry_Report_${fileBranch}_${batch}`.replace(/[\/\\:*?"<>|]+/g, '-').replace(/\s+/g, '_') + '.pdf';
+
+  try {
+    doc.save(fileName);
+  } catch (e) {
+    // If the browser blocks the download, open the PDF in a new tab instead
+    window.open(doc.output('bloburl'), '_blank');
+  }
+}
+
+// Initial check on load
+window.onload = function() {
+  document.querySelectorAll(".branchLabel").forEach(el => el.innerText = currentBranch);
+  document.querySelectorAll(".batchLabel").forEach(el => el.innerText = currentBatch);
+  checkAuthStatus();
+  fetchFromCloud();
+};
+</script>
+
+</body>
+</html>
